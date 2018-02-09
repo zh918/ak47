@@ -2,11 +2,11 @@ const phantom = require('phantom');
 const cheerio = require('cheerio');
 const moment = require('moment');
 
-class cqsscTask {
+class pksTask {
 
   constructor() {
     this.isLock = false;
-    this.time = 8 * 1000;
+    this.time = 20 * 1000;
     this.intervalId = null;
   }
 
@@ -36,7 +36,7 @@ class cqsscTask {
           }
 
           // 真正的运行渠道
-          Promise.all([_this.channel4()]).then(result=>{
+          Promise.all([_this.channel1()]).then(result=>{
               // 1.从多渠道中提取出最后一个结果数据，
               // 2.在redis中比较，是否请求collect_api
               console.log('结果是===>',result);
@@ -63,7 +63,8 @@ class cqsscTask {
   }
 
   /**
-   * 官方网站 已测试
+   * 官方网站 有403
+   * http://www.bwlc.net/
    */
   channel1() {
     return new Promise(async function(resolve,reject){
@@ -76,24 +77,19 @@ class cqsscTask {
           // console.info('Requesting========>', requestData.url);
         });
 
-        const status = await page.open('http://www.cqcp.net/game/ssc/');
+        const status = await page.open('http://www.bwlc.net/');
         const content = await page.property('content');
         const $ = cheerio.load(content);
-        // console.log('result============>',$('#openlist').text())
+        const pksDom = $('div.icon_pk10').parent().parent();
+        const issue = pksDom.find('span.ml10').text();
+        const codeDoms = pksDom.find('ul.dib').find('li');
 
-        const reg = new RegExp(/[1][8]\d{7}(\d-\d-\d-\d-\d)/g);
-        const resultText = $('#openlist').text();
-        const matchs = resultText.match(reg)
-        console.log('======================',moment().format());
-        matchs.forEach(function(d){
-          let regDate = new RegExp(/[1][8]\d{7}/);
-          let regNums = new RegExp(/(\d-\d-\d-\d-\d)/);
-
-          let dateStr = d.match(regDate);
-          let numStr = d.match(regNums);
-          resultArray.push({fullDateNum:'20' + dateStr[0],data:numStr[0]});
-          // console.log(dateStr[0],numStr[0],JSON.stringify(resultArray));
+        codeArray = [];
+        codeDoms.each(function(i,elem) {
+          codeArray($(this).text());
         });
+
+        resultArray.push({fullDateNum:issue,data:codeArray.join('-')});
 
         resolve(resultArray);
 
@@ -107,8 +103,8 @@ class cqsscTask {
   }
 
   /**
-   * 网易彩票 已测试
-   * http://caipiao.163.com/award/cqssc/
+   * 未知名 号码是对应的class，需要转换下
+   * http://kj.13322.com/pk10_history_dtoday.html
    */
   channel2() {
     return new Promise(async function(resolve,reject){
@@ -131,7 +127,7 @@ class cqsscTask {
           if (typeof tempObj !== 'undefined' && typeof tempObj['data-win-number'] != 'undefined')
           {
             // console.log(tempObj['data-period'],tempObj['data-win-number']);
-            resultArray.push({fullDateNum: '20' + tempObj['data-period'],data:tempObj['data-win-number'].replace(/ /g,'-')});
+            resultArray.push({fullDateNum: tempObj['data-period'],data:tempObj['data-win-number'].replace(/ /g,'-')});
           }
         }
 
@@ -148,7 +144,7 @@ class cqsscTask {
   }
 
   /**
-   * 360彩票 已测试
+   * 360彩票 存在问题还
    * http://cp.360.cn/ssccq/?menu&r_a=uiaAny
    */
   channel3() {
@@ -165,14 +161,19 @@ class cqsscTask {
         const status = await page.open('http://cp.360.cn/ssccq/?menu&r_a=uiaAny');
         const content = await page.property('content');
         const $ = cheerio.load(content);
-        const doms = $('table.mod-kjnum-table').find('tbody').find('td');
+        const doms = $('table.mod-kjnum-table').find('tr').find('td');
+        // console.log(doms);
 
-
-        doms.each(function(i,elem) {
-          let issue = $(this).children('span').attr('issue');
-          let code = $(this).children('em.code').text().split('').join('-');
-          if (code) resultArray.push({fullDateNum: issue,data:code});
-        });
+        for(let attr in doms) {
+          let tempObj = doms[attr].attribs;
+          if (typeof tempObj !== 'undefined') console.log(doms[attr].attribs);
+          // let tempObj = doms[attr].attribs;
+          // if (typeof tempObj !== 'undefined' && typeof tempObj['data-win-number'] != 'undefined')
+          // {
+          //   // console.log(tempObj['data-period'],tempObj['data-win-number']);
+          //   resultArray.push({fullDateNum: tempObj['data-period'],data:tempObj['data-win-number'].replace(/ /g,'-')});
+          // }
+        }
 
         resolve(resultArray);
 
@@ -186,46 +187,7 @@ class cqsscTask {
 
   }
 
-  /**
-   * 500彩票 未完成
-   * http://kaijiang.500.com/static/public/ssc/xml/qihaoxml/20180209.xml?_A=FJDVYHZC1518158660825
-   */
-   channel4() {
-     return new Promise(async function(resolve,reject){
-       const instance = await phantom.create();
-       console.log('===create')
-       try {
-         const resultArray = [];
-         const page = await instance.createPage();
-         await page.on('onResourceRequested', function(requestData) {
-           // console.info('Requesting========>', requestData.url);
-         });
-
-         const status = await page.open('http://kaijiang.500.com/static/public/ssc/xml/qihaoxml/20180209.xml?_A=FJDVYHZC1518158660825');
-         const content = await page.property('content');
-         const $ = cheerio.load(content);
-         // const doms = $.find('html');
-         console.log($('row').find('row')[0]);
-
-         // doms.each(function(i,elem) {
-         //   console.log($(this));
-         //   // let issue = $(this).children('span').attr('issue');
-         //   // let code = $(this).children('em.code').text().split('').join('-');
-         //   // if (code) resultArray.push({fullDateNum: issue,data:code});
-         // });
-
-         resolve(resultArray);
-
-       } catch (e) {
-         resolve([]);
-       } finally {
-         await instance.exit();
-       }
-     });
-
-
-   }
 
 }
 
-module.exports = cqsscTask;
+module.exports = pksTask;
